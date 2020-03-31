@@ -1,0 +1,202 @@
+<html>
+
+<head>
+    <link href="style.css" rel="stylesheet">
+    <link href="bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <table>
+        <tr>
+            <td>Number of players</td>
+            <td><input type="number" min="1" max="5" id="numberPlayers" value="1"></td>
+        </tr>
+        <tr>
+            <td colspan="2"><button type="button" id="startButton" onclick="startGame()">Start new game</button></td>
+        </tr>
+    </table>
+
+    <div class="row">
+        <div class="column left" style="background-color:#aaa;">
+            <table id="score">
+            </table>
+        </div>
+        <div class="column right" style="background-color:#bbb;">
+            <table>
+                <tr>
+                    <td> Dice</td>
+                    <td id="dice_0"></td>
+                    <td id="dice_1"></td>
+                    <td id="dice_2"></td>
+                    <td id="dice_3"></td>
+                    <td id="dice_4"></td>
+                </tr>
+                <tr>
+                    <td>Keep dice?</td>
+                    <td><input type="checkbox" class="largerCheckbox" id="keep_dice_0"></td>
+                    <td><input type="checkbox" class="largerCheckbox" id="keep_dice_1"></td>
+                    <td><input type="checkbox" class="largerCheckbox" id="keep_dice_2"></td>
+                    <td><input type="checkbox" class="largerCheckbox" id="keep_dice_3"></td>
+                    <td><input type="checkbox" class="largerCheckbox" id="keep_dice_4"></td>
+                </tr>
+                <tr>
+                    <td colspan="6"><button type="button" id="throwButton" onclick="throwDice()">Throw the dice</button></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script src="src/turn.js"></script>
+    <script src="src/evaluateDice.js"></script>
+    <script src="src/individualGame.js"></script>
+    <script>
+        var players = []
+        var activePlayer = 0;
+        var numberPlayers = 0;
+        var currentTurn;
+
+        function startGame() {
+            numberPlayers = Number(document.getElementById("numberPlayers").value);
+            activePlayer = 0;
+            players = [];
+            for (let i = 0; i < numberPlayers; i++) {
+                players.push(new individualGame());
+            }
+            resetScores(document.getElementById("score"));
+            activateCurrentPlayer();
+            currentTurn = new Turn();
+        }
+
+        function throwDice() {
+            var diceToKeep = getDiceToKeep();
+            currentTurn.throwTheDice(diceToKeep);
+            displayDice(currentTurn.showDice());
+            if (currentTurn.numberOfThrows == maxThrows) {
+                document.getElementById("throwButton").disabled = true;
+            }
+        }
+
+        function getDiceToKeep() {
+            if (currentTurn.numberOfThrows == 0) {
+                return [];
+            } else {
+                var result = [];
+                for (let i = 0; i < 5; i++) {
+                    if (document.getElementById("keep_dice_" + i).checked) {
+                        result.push(i);
+                    }
+                }
+                return result;
+            }
+        }
+
+        function displayDice(dice) {
+            for (let i = 0; i < 5; i++) {
+                document.getElementById("dice_" + i).innerText = dice[i];
+            }
+        }
+
+        function resetScores(table) {
+            while (table.rows.length > 0) {
+                table.deleteRow(0);
+            }
+            header = table.insertRow(0);
+            c0 = header.insertCell(0);
+            c0.innerText = "Category";
+            for (let i = 1; i <= numberPlayers; i++) {
+                c = header.insertCell(i);
+                c.id = "header_player_" + i;
+                c.innerText = "Player " + i;
+            }
+
+            for (const key in players[0].score) {
+                row = table.insertRow(table.rows.length);
+                c0 = row.insertCell(0);
+                c0.innerText = key;
+                for (let i = 1; i <= numberPlayers; i++) {
+                    id = "score_" + key + "_player_" + i;
+                    c = row.insertCell(i);
+                    c.id = "score_" + id;
+                    c.innerHTML = "<button id=" + id + " onclick='saveTurn(this)'>Save</button>";
+                }
+            }
+
+            row_bonus = table.insertRow(table.rows.length);
+            c0 = row_bonus.insertCell(0);
+            c0.innerText = "Bonus";
+            for (let i = 1; i <= numberPlayers; i++) {
+                c = row_bonus.insertCell(i);
+                c.id = "scorebonus_" + i;
+                c.innerHTML = "";
+            }
+
+            row_total = table.insertRow(table.rows.length);
+            c0 = row_total.insertCell(0);
+            c0.innerText = "Total sum";
+            for (let i = 1; i <= numberPlayers; i++) {
+                c = row_total.insertCell(i);
+                c.id = "scoretotal_" + i;
+                c.innerHTML = "";
+            }
+        }
+
+        function saveTurn(callingButton) {
+            if (currentTurn.numberOfThrows > 0) {
+                id = callingButton.id;
+                player = id.split("_")[3];
+
+                if (player == activePlayer + 1) {
+                    category = id.split("_")[1];
+
+                    cell = document.getElementById("score_" + id);
+
+                    currentScore = new ScoreOfThrow(currentTurn.showDice());
+                    points = currentScore.getSpecificScore(category);
+                    cell.innerHTML = points;
+                    players[activePlayer].saveScore(category, points);
+                    updateScores();
+                    nextPlayerToMove();
+                } else {
+                    alert("This is not your turn!");
+                }
+            } else {
+                alert("Please throw the dice before saving a turn!");
+            }
+        }
+
+        function nextPlayerToMove() {
+            if (activePlayer == numberPlayers - 1) {
+                activePlayer = 0;
+            } else {
+                activePlayer++;
+            }
+            activateCurrentPlayer();
+            document.getElementById("throwButton").disabled = false;
+            resetDice();
+            currentTurn = new Turn();
+        }
+
+        function activateCurrentPlayer() {
+            for (let i = 1; i <= numberPlayers; i++) {
+                document.getElementById("header_player_" + i).style.fontWeight = "";
+            }
+            document.getElementById("header_player_" + Number(activePlayer + 1)).style.fontWeight = "bold";
+        }
+
+        function resetDice() {
+            for (let i = 0; i < 5; i++) {
+                document.getElementById("keep_dice_" + i).checked = false;
+                document.getElementById("dice_" + i).innerText = "";
+            }
+        }
+
+        function updateScores() {
+            for (let i = 1; i <= numberPlayers; i++) {
+                document.getElementById("scorebonus_" + i).innerText = players[i - 1].getBonus();
+                document.getElementById("scoretotal_" + i).innerText = players[i - 1].getTotalPoints();
+            }
+        }
+    </script>
+</body>
+
+</html>
